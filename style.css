@@ -1,0 +1,180 @@
+.chat-bridge-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+}
+
+.chat-bridge-messages {
+    height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--accent-color);
+    border-radius: 5px;
+    padding: 10px;
+    background-color: var(--shadow-color);
+}
+
+.chat-bridge-message {
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 5px;
+    background-color: var(--background-color);
+}
+
+.chat-bridge-message.user {
+    background-color: var(--accent-color);
+    color: var(--text-color);
+    margin-left: 20px;
+}
+
+.chat-bridge-message.assistant {
+    background-color: var(--secondary-color);
+    margin-right: 20px;
+}
+
+.chat-bridge-input-area {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-bridge-input {
+    flex: 1;
+    min-height: 60px;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid var(--accent-color);
+    background-color: var(--background-color);
+    color: var(--text-color);
+    resize: vertical;
+}
+
+.chat-bridge-settings {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.message-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.message-content {
+    word-break: break-word;
+}
+
+.message-content a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.message-content a:hover {
+    text-decoration: underline;
+}
+
+.message-content code {
+    background-color: var(--shadow-color);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.message-content ul,
+.message-content ol {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.message-content h3 {
+    margin: 15px 0 10px 0;
+}
+
+.ChatBridgeExtension_connection {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.ChatBridgeExtension_url_input input,
+.ChatBridgeExtension_port_input input {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+.ChatBridgeExtension_controls input[type="button"] {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.ChatBridgeExtension_controls input[type="button"]:hover {
+    background-color: var(--accent-color);
+}
+
+.ChatBridgeExtension_controls input[type="button"]:disabled {
+    background-color: var(--shadow-color);
+    border-color: var(--shadow-color);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+#debug_log {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+}
+
+/* 状态显示样式 */
+.ChatBridgeExtension_status {
+    margin: 10px 0;
+}
+
+#ws_status {
+    display: inline-block;
+    margin-left: 8px;
+}
+
+/* 标签样式 */
+.ChatBridgeExtension_connection label {
+    color: var(--text-color);
+}
+
+#debug_log {
+    width: 100%;
+    min-height: 150px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    margin-top: 8px;
+    resize: vertical;
+}
+
+.ChatBridgeExtension_debug {
+    margin-top: 10px;
+    padding: 8px;
+    background-color: var(--hover-color);
+    border-radius: 4px;
+}
+
+.ChatBridgeExtension_debug label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-color);
+    font-weight: bold;
+}
