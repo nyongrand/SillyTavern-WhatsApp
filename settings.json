@@ -1,0 +1,23 @@
+{
+    "websocket": {
+        "host": "localhost",
+        "port": 8001
+    },
+    "llm_api": {
+        "base_url": "https://api.openai.com/v1",
+        "api_keys": [
+            "sk-your-key1",
+            "sk-your-key2"
+        ]
+    },
+    "st_api": {
+        "host": "localhost",
+        "port": 8002,
+        "api_key": "st-internal-key"
+    },
+    "user_api": {
+        "host": "localhost",
+        "port": 8003,
+        "api_key": "user-api-key"
+    }
+}
