@@ -1,5 +1,6 @@
 import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
+import { chat } from "../../../../script.js";
 
 const extensionName = "SillyTavern-Extension-ChatBridge";
 const defaultSettings = {
@@ -37,16 +38,23 @@ function updateWSStatus(connected) {
         status.text('未连接').css('color', 'red');
     }
 }
-
-async function sendChatHistory() {
-    const context = getContext();
-    if (ws && ws.readyState === WebSocket.OPEN && context.chat) {
-        ws.send(JSON.stringify({
-            type: 'chat_history',
-            content: context.chat
-        }));
-        updateDebugLog('已发送聊天记录');
-    }
+function convertOpenAIToSTMessage(msg) {
+    const isUser = msg.role === 'user';
+    const currentTime = new Date().toLocaleString();
+    
+    return {
+        name: isUser ? 'user' : 'Assistant', // 注意：用户名要小写
+        is_user: isUser,
+        is_system: false,
+        send_date: currentTime,
+        mes: msg.content,
+        extra: {
+            isSmallSys: false,
+            token_count: 0,
+            reasoning: ''
+        },
+        force_avatar: isUser ? "User Avatars/1739777502672-user.png" : null
+    };
 }
 
 function setupWebSocket() {
@@ -60,19 +68,35 @@ function setupWebSocket() {
         updateWSStatus(true);
         updateConnectionButtons(true);
         updateDebugLog('WebSocket连接已建立');
-        sendChatHistory();
+        //sendChatHistory();
     };
-
     ws.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        updateDebugLog(`收到消息: ${JSON.stringify(data)}`);
-        
-        if (data.type === 'send_message') {
-            $('#send_textarea').val(data.content);
-            $('#send_but').click();
+        try {
+            const data = JSON.parse(event.data);
+            updateDebugLog(`收到消息: ${JSON.stringify(data)}`);
+            
+            if(data.type === 'user_request') {
+                updateDebugLog('收到用户请求');
+                const context = getContext();
+                
+                if (data.content?.messages) {
+                    const newChat = data.content.messages
+                        .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                        .map(msg => convertOpenAIToSTMessage(msg));
+                    
+                    chat.splice(0, chat.length, ...newChat);  
+                    context.reloadCurrentChat();
+                    
+                    updateDebugLog(`已更新聊天内容，共${context.chat.length}条消息`);
+                } else {
+                    updateDebugLog('错误：消息格式不正确');
+                }
+            }
+        } catch (error) {
+            updateDebugLog(`处理消息时出错: ${error.message}`);
+            console.error(error); // 输出完整错误信息
         }
     };
-
     ws.onclose = () => {
         updateWSStatus(false);
         updateConnectionButtons(false);
@@ -101,42 +125,15 @@ function disconnectWebSocket() {
     updateDebugLog('已断开WebSocket连接');
 }
 
+
 jQuery(async () => {
     const context = getContext();
-    
+
     // 添加事件系统测试代码
     updateDebugLog('=== 可用事件类型 ===');
     for (const eventType in context.eventTypes) {
         updateDebugLog(`${eventType}: ${context.eventTypes[eventType]}`);
     }
-
-    // 监听所有事件
-    // for (const eventType in context.eventTypes) {
-    //     context.eventSource.on(context.eventTypes[eventType], (...args) => {
-    //         updateDebugLog(`触发事件: ${eventType}`);
-    //         if (args.length > 0) {
-    //             updateDebugLog(`事件参数: ${JSON.stringify(args)}`);
-    //         }
-    //     });
-    // }
-    
-    // 修改事件监听
-    context.eventSource.on('GENERATION_STARTED', () => {
-        updateDebugLog('开始生成回复...');
-        streamingMessage = '';  // 重置流式消息
-    });
-
-    // 使用STREAM_TOKEN_RECEIVED事件
-    context.eventSource.on(context.eventTypes.STREAM_TOKEN_RECEIVED, (chunk) => {
-        updateDebugLog(`收到流式数据: ${chunk}`);
-        streamingMessage = chunk; // 直接使用完整的chunk，因为它已经包含了完整的当前生成内容
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'stream_update',
-                content: streamingMessage
-            }));
-        }
-    });
 
     const template = await $.get(`/scripts/extensions/third-party/${extensionName}/index.html`);
     $('#extensions_settings').append(template);
@@ -150,38 +147,76 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
 
-    context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, () => {
-        updateDebugLog('检测到新的AI回复，同步聊天记录');
-        sendChatHistory();  // AI回复时立即发送更新后的聊天记录
+    updateDebugLog('扩展初始化完成');
+
+    $('#show_chat').on('click', () => {
+        const context = getContext();
+        
+        updateDebugLog('=== 当前聊天状态 ===');
+        updateDebugLog(`全局chat长度: ${chat.length}`);
+        updateDebugLog(`context.chat长度: ${context.chat.length}`);
+        updateDebugLog(`chat === context.chat: ${chat === context.chat}`);
+        updateDebugLog('当前聊天内容:');
+        updateDebugLog(JSON.stringify(context.chat, null, 2));
     });
 
-    let streamingMessage = '';
+    $('#replace_chat').on('click', () => {
+        const context = getContext();
+        
+        const nativeChat = [
+            {
+                "name": "user",
+                "is_user": true,
+                "is_system": false,
+                "send_date": "February 26, 2025 2:09pm",
+                "mes": "？",
+                "extra": {
+                    "isSmallSys": false,
+                    "token_count": 2,
+                    "reasoning": ""
+                },
+                "force_avatar": "User Avatars/1739777502672-user.png"
+            },
+            {
+                "extra": {
+                    "api": "custom",
+                    "model": "gemini-2.0-flash-exp",
+                    "reasoning": "",
+                    "reasoning_duration": null,
+                    "token_count": 64
+                },
+                "name": "测试",
+                "is_user": false,
+                "send_date": "February 26, 2025 2:09pm",
+                "mes": "我不太确定你在问什么。你可以更详细地说明你的问题吗？",
+                "title": "",
+                "gen_started": "2025-02-26T06:09:43.173Z",
+                "gen_finished": "2025-02-26T06:09:45.338Z",
+                "swipe_id": 0,
+                "swipes": ["我不太确定你在问什么。你可以更详细地说明你的问题吗？"],
+                "swipe_info": [{
+                    "send_date": "February 26, 2025 2:09pm",
+                    "gen_started": "2025-02-26T06:09:43.173Z",
+                    "gen_finished": "2025-02-26T06:09:45.338Z",
+                    "extra": {
+                        "api": "custom",
+                        "model": "gemini-2.0-flash-exp",
+                        "reasoning": "",
+                        "reasoning_duration": null,
+                        "token_count": 64
+                    }
+                }]
+            }
+        ];
     
-    context.eventSource.on(context.eventTypes.GENERATION_STARTED, () => {
-        updateDebugLog('开始生成回复...');
-        streamingMessage = '';  // 重置流式消息
-    });
-
-    context.eventSource.on(context.eventTypes.TEXT_STREAM, (chunk) => {
-        streamingMessage += chunk;
-        // 发送流式更新
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'stream_update',
-                content: streamingMessage
-            }));
+        try {
+            chat.splice(0, chat.length, ...nativeChat);
+            context.reloadCurrentChat();
+        } catch (error) {
+            updateDebugLog(`替换聊天时出错: ${error.message}`);
+            console.error(error);
         }
     });
 
-    // 保留原有的消息监听
-    context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, () => {
-        updateDebugLog('AI回复完成，同步完整聊天记录');
-        sendChatHistory();
-    });
-
-    context.eventSource.on(context.eventTypes.MESSAGE_SENT, sendChatHistory);
-    context.eventSource.on(context.eventTypes.MESSAGE_DELETED, sendChatHistory);
-    context.eventSource.on(context.eventTypes.MESSAGE_EDITED, sendChatHistory);
-    
-    updateDebugLog('扩展初始化完成');
+    updateDebugLog('测试功能已初始化');
 });

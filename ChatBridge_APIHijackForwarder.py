@@ -85,7 +85,7 @@ class ChatBridgeForwarder:
         logger.info(f"ST API服务器运行在 http://{self.settings['st_api']['host']}:{self.settings['st_api']['port']}")
         logger.info(f"用户API服务器运行在 http://{self.settings['user_api']['host']}:{self.settings['user_api']['port']}")
 
-    async def handle_websocket(self, websocket, path):
+    async def handle_websocket(self, websocket):
         self.ws_clients.add(websocket)
         try:
             async for message in websocket:
