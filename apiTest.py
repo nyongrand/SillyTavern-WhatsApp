@@ -1,28 +1,53 @@
+import asyncio
 from openai import OpenAI
+import types
 
-# 创建客户端实例
+# 配置OpenAI客户端
 client = OpenAI(
-    api_key="user-api-key",  # 替换为settings.json中配置的user_api.api_key
-    base_url="http://localhost:8003/v1"  # 替换为你的用户API地址
+    api_key="user-api-key",
+    base_url="http://localhost:8003/v1"
 )
+# client = OpenAI(
+#     api_key="REMOVED",
+#     base_url="https://generativelanguage.googleapis.com/v1beta/openai"
+# )
+    
+is_stream=True
+model_name="gemini-2.0-flash-exp"
 
-def test_chat_completion():
-    try:
-        # 创建一个简单的对话请求
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # 模型名称可以是任意值，因为请求会被转发
-            messages=[
-                {"role": "system", "content": "你是一个乐于助人的助手。"},
-                {"role": "user", "content": "你好，请介绍一下你自己。"}
-            ]
-        )
-        
-        # 由于用户API设计为异步响应（返回202状态码），
-        # 这里主要用于验证请求是否成功发送
-        print("请求已发送！")
-        
-    except Exception as e:
-        print(f"发生错误: {e}")
+def main():
+    print("发送请求...")
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": "你好呀"}],
+        stream=is_stream
+    )
+    
+    if is_stream:
+        full_content = ""
+        print("\n开始接收流式响应:")
+        try:
+            for i, chunk in enumerate(response):
+                print(f"\n=== 块 #{i+1} ===")
+                print(f"Raw chunk: {chunk}")
+                
+                # 提取内容
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_content += content
+                    print(f"Content: {content}")
+                
+                # 检查完成原因
+                if chunk.choices and chunk.choices[0].finish_reason:
+                    print(f"Finish reason: {chunk.choices[0].finish_reason}")
+                
+            print("\n=== 完整响应 ===")
+            print(full_content)
+        except Exception as e:
+            print(f"处理流式响应时出错: {e}")
+    else:
+        print("\n=== 非流式响应 ===")
+        print(response)
 
 if __name__ == "__main__":
-    test_chat_completion()
+    main()

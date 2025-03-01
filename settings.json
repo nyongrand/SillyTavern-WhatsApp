@@ -4,10 +4,10 @@
         "port": 8001
     },
     "llm_api": {
-        "base_url": "https://api.openai.com/v1",
+        "base_url": "your_base_url",
         "api_keys": [
-            "sk-your-key1",
-            "sk-your-key2"
+            "your_api_key1",
+            "your_api_key2"
         ]
     },
     "st_api": {

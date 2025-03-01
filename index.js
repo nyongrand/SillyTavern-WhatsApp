@@ -77,9 +77,8 @@ function setupWebSocket() {
 
             if (data.type === 'user_request') {
                 updateDebugLog('收到用户请求');
-                const context = getContext();
-
                 if (data.content?.messages) {
+                    const context = getContext();
                     const newChat = data.content.messages
                         .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                         .map(msg => convertOpenAIToSTMessage(msg));

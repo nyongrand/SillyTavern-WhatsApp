@@ -7,6 +7,8 @@ sequenceDiagram
     participant STAPI as ST接口
     participant LLMAPI as LLM接口
     participant LLM as 外部LLM
+    
+    USER,ST,LLM均属外部逻辑,此脚本不应包含具体实现
 
     User->>UserAPI: 1.调用API(OpenAI格式)
     UserAPI->>WS: 2.转发请求到WebSocket
@@ -15,20 +17,25 @@ sequenceDiagram
     STAPI->>LLMAPI: 5.转发到LLM接口
     LLMAPI->>LLM: 6.调用外部LLM
     LLM-->>LLMAPI: 7.返回响应
-    LLMAPI-->>STAPI: 8a.转发响应
-    LLMAPI-->>UserAPI: 8b.同时转发响应
-    UserAPI-->>User: 9.返回给用户
+    LLMAPI-┬->>STAPI: 8a.转发响应
+           └->>UserAPI: 8b.同时转发响应
+    STAPI-->ST: 9a.返回给ST
+    UserAPI-->>User: 9b.返回给用户
 """
+#            "REMOVED",
+#        "base_url": "https://api.aiuvdt.top",
+#
+        #"base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
 import json
 import asyncio
 import websockets
 import aiohttp
-from aiohttp import web
-from typing import List, Dict, Any
 import logging
 import os
 from collections import deque
 import uuid
+from aiohttp import web
+from typing import List, Dict, Any
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,23 +56,8 @@ class ChatBridgeForwarder:
         
         self.ws_clients = set()
         self.key_rotator = APIKeyRotator(self.settings['llm_api']['api_keys'])
+        self.response_futures = {}
         
-        # 定义所有支持的API路径
-        self.api_routes = [
-            '/v1/chat/completions',
-            '/v1/completions',
-            '/v1/models',
-            '/v1/embeddings',
-            '/v1/moderations',
-            '/v1/images/generations',
-            '/v1/edits',
-            '/v1/audio/transcriptions',
-            '/v1/audio/translations',
-            '/v1/fine-tunes',
-            '/v1/files'
-        ]
-        self.response_futures = {}  # 用于存储请求ID和对应的Future
-
     async def start(self):
         # 启动WebSocket服务器
         ws_server = websockets.serve(
@@ -74,10 +66,15 @@ class ChatBridgeForwarder:
             self.settings['websocket']['port']
         )
 
-        # 创建ST API服务器，支持所有API路径
+        # 创建ST API服务器
         st_app = web.Application()
-        for route in self.api_routes:
-            st_app.router.add_route('*', route, self.handle_st_api)
+        # 修改路由处理
+        st_app.router.add_get('/models', self.handle_models)
+        st_app.router.add_get('/v1/models', self.handle_models)
+        st_app.router.add_post('/chat/completions', self.handle_chat_completions)
+        st_app.router.add_post('/v1/chat/completions', self.handle_chat_completions)
+            
+        #初始化ST API服务器
         st_runner = web.AppRunner(st_app)
         await st_runner.setup()
         st_site = web.TCPSite(
@@ -129,147 +126,226 @@ class ChatBridgeForwarder:
         finally:
             self.ws_clients.remove(websocket)
 
-    async def forward_request(self, request: web.Request) -> web.Response:
-        """通用请求转发函数，保持完整的请求参数和响应"""
-        api_key = self.key_rotator.get_next_key()
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': request.headers.get('Content-Type', 'application/json')
-        }
-        
-        # 获取原始请求路径
-        path = request.path
-        # 构建目标URL
-        target_url = f"{self.settings['llm_api']['base_url']}{path}"
-        
-        try:
-            # 获取原始请求数据
-            if request.headers.get('Content-Type') == 'application/json':
-                data = await request.json()
-            else:
-                data = await request.read()
+    async def handle_user_api(self, request: web.Request) -> web.Response:
+        """处理来自用户的API请求"""
+        if request.headers.get('Authorization') != f"Bearer {self.settings['user_api']['api_key']}":
+            return web.Response(status=401)
 
-            # 获取查询参数
-            params = dict(request.query)
-            
-            async with aiohttp.ClientSession() as session:
-                method = request.method
-                # 构建请求参数
-                req_kwargs = {
-                    'headers': headers,
-                    'params': params
+        try:
+            request_data = await request.json()
+            request_id = str(uuid.uuid4())
+            is_stream = request_data.get('stream', False)
+            logger.info(f"用户API请求 ID={request_id}, stream={is_stream}")
+
+            if is_stream:
+                # 创建流式响应
+                stream_response = web.StreamResponse(
+                    status=200,
+                    headers={
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive'
+                    }
+                )
+                await stream_response.prepare(request)
+                
+                # 创建事件队列
+                queue = asyncio.Queue() 
+                self.response_futures[request_id] = queue
+
+                try:
+                    # 发送WebSocket消息
+                    ws_message = {
+                        'type': 'user_request',
+                        'id': request_id,
+                        'content': request_data
+                    }
+                    
+                    if not self.ws_clients:
+                        return web.Response(status=503, text="No WebSocket clients connected")
+                    
+                    for ws in self.ws_clients:
+                        try:
+                            await ws.send(json.dumps(ws_message))
+                            logger.info(f"已发送请求到WebSocket: ID={request_id}")
+                            break
+                        except Exception as e:
+                            logger.error(f"发送WebSocket消息失败: {e}")
+                            continue
+
+                    # 等待并转发响应块
+                    received_chunks = []
+                    while True:
+                        try:
+                            chunk = await asyncio.wait_for(queue.get(), timeout=60.0)
+                            
+                            # 只处理非空的有效数据
+                            if chunk and isinstance(chunk, str):
+                                chunk = chunk.strip()
+                                if not chunk:
+                                    continue
+                                    
+                                if chunk == '[DONE]':
+                                    await stream_response.write(b'data: [DONE]\n\n')
+                                    logger.info(f"发送流式响应结束标记: ID={request_id}")
+                                    break
+                                    
+                                # 确保响应格式正确
+                                if not chunk.startswith('data: '):
+                                    chunk = f'data: {chunk}'
+                                if not chunk.endswith('\n\n'):
+                                    chunk = f'{chunk}\n\n'
+                                    
+                                logger.debug(f"发送响应块: {chunk.strip()}")
+                                await stream_response.write(chunk.encode())
+                                
+                        except asyncio.TimeoutError:
+                            logger.warning(f"等待响应块超时: ID={request_id}")
+                            await stream_response.write(b'data: [DONE]\n\n')
+                            break
+                            
+                    return stream_response
+                    
+                finally:
+                    # 清理队列
+                    self.response_futures.pop(request_id, None)
+            else:
+                # 处理非流式请求
+                future = asyncio.Future()
+                self.response_futures[request_id] = future
+                
+                # 发送WebSocket消息
+                ws_message = {
+                    'type': 'user_request',
+                    'id': request_id,
+                    'content': request_data
                 }
                 
-                if method in ['POST', 'PUT', 'PATCH']:
-                    if isinstance(data, dict):
-                        req_kwargs['json'] = data
-                    else:
-                        req_kwargs['data'] = data
-
-                # 发送请求
-                async with session.request(method, target_url, **req_kwargs) as response:
-                    # 处理流式响应
-                    if response.headers.get('content-type') == 'text/event-stream':
-                        return web.StreamResponse(
-                            status=response.status,
-                            headers={'Content-Type': 'text/event-stream'}
-                        )
+                if not self.ws_clients:
+                    return web.Response(status=503, text="No WebSocket clients connected")
                     
-                    # 处理普通响应
-                    return web.Response(
-                        status=response.status,
-                        headers=response.headers,
-                        body=await response.read()
-                    )
+                for ws in self.ws_clients:
+                    try:
+                        await ws.send(json.dumps(ws_message))
+                        logger.info(f"已发送请求到WebSocket: ID={request_id}")
+                        break
+                    except Exception as e:
+                        logger.error(f"发送WebSocket消息失败: {e}")
+                        continue
+                
+                try:
+                    # 等待响应
+                    response = await asyncio.wait_for(future, timeout=10.0)
+                    return web.json_response(response)
+                finally:
+                    self.response_futures.pop(request_id, None)
 
         except Exception as e:
-            logger.error(f"请求转发错误: {e}")
-            return web.Response(status=500, text=str(e))
-
-    async def forward_to_llm(self, request_data: Dict[str, Any], stream: bool = False) -> web.Response:
+            logger.error(f"处理用户API请求失败: {str(e)}", exc_info=True)
+            return web.Response(status=500, text=f"Internal Server Error: {str(e)}")
+      
+    async def handle_models(self, request: web.Request) -> web.Response:
+        """处理模型列表请求"""
+        logger.info(f"收到models请求: {request.path}")
         api_key = self.key_rotator.get_next_key()
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json'
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.settings['llm_api']['base_url']}/chat/completions",
-                json=request_data,
-                headers=headers
-            ) as response:
-                if stream:
-                    return web.StreamResponse(
-                        status=response.status,
-                        headers={'Content-Type': 'text/event-stream'}
-                    )
-                else:
-                    return web.json_response(await response.json())
-
-    async def handle_st_api(self, request: web.Request) -> web.Response:
-        """处理来自ST的API请求，直接转发给LLM API"""
-        if request.headers.get('Authorization') != f"Bearer {self.settings['st_api']['api_key']}":
-            return web.Response(status=401)
-        
-        return await self.forward_request(request)
-
-    async def handle_user_api(self, request: web.Request) -> web.Response:
-        if request.headers.get('Authorization') != f"Bearer {self.settings['user_api']['api_key']}":
-            return web.Response(status=401)
-
-        request_data = await request.json()
-        request_id = str(uuid.uuid4())  # 生成唯一请求ID
-        
-        # 创建Future用于等待响应
-        response_future = asyncio.Future()
-        self.response_futures[request_id] = response_future
-        
-        # 构建WebSocket消息
-        ws_message = {
-            'type': 'user_request',
-            'id': request_id,
-            'content': request_data
-        }
-        
-        # 发送给所有连接的WebSocket客户端
-        if not self.ws_clients:
-            return web.Response(status=503, text="No WebSocket clients connected")
-            
-# 发送请求到WebSocket
-        for ws in self.ws_clients:
-            try:
-                await ws.send(json.dumps(ws_message))
-            except Exception as e:
-                logger.error(f"发送WebSocket消息失败: {e}")
-                continue
-        
         try:
-            # 等待响应,设置超时时间
-            response = await asyncio.wait_for(response_future, timeout=30.0)
-            
-            # 处理流式响应
-            if response.get('stream', False):
-                stream_response = web.StreamResponse(
-                    status=200,
-                    headers={'Content-Type': 'text/event-stream'}
-                )
-                await stream_response.prepare(request)
-                for chunk in response.get('chunks', []):
-                    await stream_response.write(chunk.encode())
-                await stream_response.write_eof()
-                return stream_response
-            
-            # 处理普通响应
-            return web.json_response(response)
-            
-        except asyncio.TimeoutError:
-            logger.error(f"请求超时: {request_id}")
-            return web.Response(status=504, text="Gateway Timeout")
-        finally:
-            # 清理Future
-            self.response_futures.pop(request_id, None)
+            async with aiohttp.ClientSession() as session:
+                #remove v1/ of llm_api
+                target_url = f"{self.settings['llm_api']['base_url']}/models"
+                logger.info(f"转发请求到: {target_url}")
+                async with session.get(target_url, headers=headers) as response:
+                    response_data = await response.json()
+                    logger.info(f"模型列表响应: {response_data}")
+                    return web.json_response(response_data)
+        except Exception as e:
+            logger.error(f"获取模型列表失败: {str(e)}")
+            return web.Response(status=500, text=str(e))
 
+    async def handle_chat_completions(self, request: web.Request) -> web.Response:
+        """处理聊天完成请求，直接转发 LLM API 的响应
+        
+        Args:
+            request: Web请求对象
+        
+        Returns:
+            web.Response: 处理后的响应
+        """
+        try:
+            # 1. 获取请求信息
+            request_data = await request.json()
+            is_stream = request_data.get('stream', False)
+            logger.info(f"收到chat completion请求: PATH={request.path}, STREAM={is_stream}")
+
+            # 2. 准备转发到LLM API
+            api_key = self.key_rotator.get_next_key()
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            target_url = f"{self.settings['llm_api']['base_url']}/chat/completions"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(target_url, json=request_data, headers=headers) as llm_response:
+                    # 3. 处理流式响应
+                    if llm_response.headers.get('content-type') == 'text/event-stream':
+                        logger.info("处理流式响应")
+                        # 创建ST的流式响应
+                        st_response = web.StreamResponse(
+                            status=llm_response.status,
+                            headers={'Content-Type': 'text/event-stream'}
+                        )
+                        await st_response.prepare(request)
+
+                        # 获取等待响应的用户队列
+                        active_user_queues = {
+                            rid: queue for rid, queue in self.response_futures.items() 
+                            if isinstance(queue, asyncio.Queue)
+                        }
+
+                        # 直接转发每个数据块
+                        async for chunk in llm_response.content:
+                            if chunk:
+                                # 发送到ST
+                                await st_response.write(chunk)
+                                # 同时转发到用户队列
+                                if active_user_queues:
+                                    for queue in active_user_queues.values():
+                                        await queue.put(chunk.decode())
+
+                        # 流结束后通知用户队列
+                        if active_user_queues:
+                            for queue in active_user_queues.values():
+                                await queue.put('[DONE]')
+
+                        return st_response
+
+                    # 4. 处理非流式响应
+                    else:
+                        logger.info("处理非流式响应")
+                        response_data = await llm_response.json()
+                        logger.info(f"收到LLM响应: {response_data}")
+                         # 查找对应的用户请求Future并设置结果
+                        for request_id, future in list(self.response_futures.items()):
+                            if isinstance(future, asyncio.Future) and not future.done():
+                                logger.info(f"设置用户请求结果: ID={request_id}")
+                                future.set_result(response_data)
+                                break
+                        return web.json_response(
+                            response_data, 
+                            status=llm_response.status,
+                            #headers={'Content-Type': 'application/json'}
+                        )
+
+        except Exception as e:
+            error_msg = f"处理聊天完成请求失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return web.Response(status=500, text=error_msg)
+        
 async def main():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     forwarder = ChatBridgeForwarder(settings_path)
