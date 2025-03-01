@@ -1,24 +1,3 @@
-"""
-sequenceDiagram
-    participant User as 外部应用
-    participant UserAPI as 用户接口
-    participant WS as WebSocket
-    participant ST as SillyTavern
-    participant STAPI as ST接口
-    participant LLMAPI as LLM接口
-    participant LLM as 外部LLM
-
-    User->>UserAPI: 1.调用API(OpenAI格式)
-    UserAPI->>WS: 2.转发请求到WebSocket
-    WS->>ST: 3.通知ST处理请求
-    ST->>STAPI: 4.处理后调用ST接口
-    STAPI->>LLMAPI: 5.转发到LLM接口
-    LLMAPI->>LLM: 6.调用外部LLM
-    LLM-->>LLMAPI: 7.返回响应
-    LLMAPI-->>STAPI: 8a.转发响应
-    LLMAPI-->>UserAPI: 8b.同时转发响应
-    UserAPI-->>User: 9.返回给用户
-"""
 import json
 import asyncio
 import websockets
@@ -28,7 +7,6 @@ from typing import List, Dict, Any
 import logging
 import os
 from collections import deque
-import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,7 +42,6 @@ class ChatBridgeForwarder:
             '/v1/fine-tunes',
             '/v1/files'
         ]
-        self.response_futures = {}  # 用于存储请求ID和对应的Future
 
     async def start(self):
         # 启动WebSocket服务器
@@ -115,15 +92,6 @@ class ChatBridgeForwarder:
                 try:
                     data = json.loads(message)
                     logger.info(f"收到WebSocket消息: {data}")
-                    
-                    # 处理ST的响应
-                    if data.get('type') == 'st_response':
-                        request_id = data.get('id')
-                        if request_id in self.response_futures:
-                            future = self.response_futures[request_id]
-                            if not future.done():
-                                future.set_result(data.get('content'))
-                                
                 except json.JSONDecodeError:
                     logger.error("无效的WebSocket消息格式")
         finally:
@@ -219,16 +187,10 @@ class ChatBridgeForwarder:
             return web.Response(status=401)
 
         request_data = await request.json()
-        request_id = str(uuid.uuid4())  # 生成唯一请求ID
         
-        # 创建Future用于等待响应
-        response_future = asyncio.Future()
-        self.response_futures[request_id] = response_future
-        
-        # 构建WebSocket消息
+        # 直接通过WebSocket发送到ST，不等待响应
         ws_message = {
             'type': 'user_request',
-            'id': request_id,
             'content': request_data
         }
         
@@ -236,7 +198,6 @@ class ChatBridgeForwarder:
         if not self.ws_clients:
             return web.Response(status=503, text="No WebSocket clients connected")
             
-# 发送请求到WebSocket
         for ws in self.ws_clients:
             try:
                 await ws.send(json.dumps(ws_message))
@@ -244,31 +205,8 @@ class ChatBridgeForwarder:
                 logger.error(f"发送WebSocket消息失败: {e}")
                 continue
         
-        try:
-            # 等待响应,设置超时时间
-            response = await asyncio.wait_for(response_future, timeout=30.0)
-            
-            # 处理流式响应
-            if response.get('stream', False):
-                stream_response = web.StreamResponse(
-                    status=200,
-                    headers={'Content-Type': 'text/event-stream'}
-                )
-                await stream_response.prepare(request)
-                for chunk in response.get('chunks', []):
-                    await stream_response.write(chunk.encode())
-                await stream_response.write_eof()
-                return stream_response
-            
-            # 处理普通响应
-            return web.json_response(response)
-            
-        except asyncio.TimeoutError:
-            logger.error(f"请求超时: {request_id}")
-            return web.Response(status=504, text="Gateway Timeout")
-        finally:
-            # 清理Future
-            self.response_futures.pop(request_id, None)
+        # 直接返回成功状态，不等待处理结果
+        return web.Response(status=202)  # 202 Accepted
 
 async def main():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')

@@ -14,7 +14,7 @@ if (!extension_settings[extensionName]) {
 Object.assign(extension_settings[extensionName], defaultSettings);
 
 let ws;
-    
+
 function updateDebugLog(message) {
     const debugLog = $('#debug_log');
     if (debugLog.length === 0) {
@@ -41,7 +41,7 @@ function updateWSStatus(connected) {
 function convertOpenAIToSTMessage(msg) {
     const isUser = msg.role === 'user';
     const currentTime = new Date().toLocaleString();
-    
+
     return {
         name: isUser ? 'user' : 'Assistant', // 注意：用户名要小写
         is_user: isUser,
@@ -61,7 +61,7 @@ function setupWebSocket() {
     const wsUrl = $('#ws_url').val();
     const wsPort = $('#ws_port').val();
     updateDebugLog(`尝试连接WebSocket服务器: ws://${wsUrl}:${wsPort}`);
-    
+
     ws = new WebSocket(`ws://${wsUrl}:${wsPort}`);
 
     ws.onopen = () => {
@@ -74,20 +74,22 @@ function setupWebSocket() {
         try {
             const data = JSON.parse(event.data);
             updateDebugLog(`收到消息: ${JSON.stringify(data)}`);
-            
-            if(data.type === 'user_request') {
+
+            if (data.type === 'user_request') {
                 updateDebugLog('收到用户请求');
                 const context = getContext();
-                
+
                 if (data.content?.messages) {
                     const newChat = data.content.messages
                         .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                         .map(msg => convertOpenAIToSTMessage(msg));
-                    
-                    chat.splice(0, chat.length, ...newChat);  
-                    context.reloadCurrentChat();
-                    
+
+                    chat.splice(0, chat.length, ...newChat);
+                    context.clearChat();
+                    context.printMessages();
+                    context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
                     updateDebugLog(`已更新聊天内容，共${context.chat.length}条消息`);
+                    $('#send_but').click();
                 } else {
                     updateDebugLog('错误：消息格式不正确');
                 }
@@ -137,12 +139,12 @@ jQuery(async () => {
 
     const template = await $.get(`/scripts/extensions/third-party/${extensionName}/index.html`);
     $('#extensions_settings').append(template);
-    
+
     $('#ws_connect').on('click', setupWebSocket);
     $('#ws_disconnect').on('click', disconnectWebSocket);
     $('#ws_port').val(extension_settings[extensionName].wsPort);
-    
-    $('#ws_port').on('change', function() {
+
+    $('#ws_port').on('change', function () {
         extension_settings[extensionName].wsPort = $(this).val();
         saveSettingsDebounced();
     });
@@ -151,18 +153,20 @@ jQuery(async () => {
 
     $('#show_chat').on('click', () => {
         const context = getContext();
-        
+
         updateDebugLog('=== 当前聊天状态 ===');
-        updateDebugLog(`全局chat长度: ${chat.length}`);
-        updateDebugLog(`context.chat长度: ${context.chat.length}`);
-        updateDebugLog(`chat === context.chat: ${chat === context.chat}`);
+        updateDebugLog('name1: ' + context.name1);
+        updateDebugLog('name2: ' + context.name2);
+        updateDebugLog('characterId: ' + context.characterId);
         updateDebugLog('当前聊天内容:');
         updateDebugLog(JSON.stringify(context.chat, null, 2));
+        updateDebugLog('当前聊天元数据:');
+        updateDebugLog(JSON.stringify(context.chatMetadata, null, 2));
     });
 
     $('#replace_chat').on('click', () => {
         const context = getContext();
-        
+
         const nativeChat = [
             {
                 "name": "user",
@@ -208,10 +212,67 @@ jQuery(async () => {
                 }]
             }
         ];
-    
+
+        const nativeChat2 = [
+            {
+                "name": "user",
+                "is_user": true,
+                "is_system": false,
+                "send_date": "February 28, 2025 12:43am",
+                "mes": "?",
+                "extra": {
+                    "isSmallSys": false,
+                    "token_count": 2,
+                    "reasoning": ""
+                },
+                "force_avatar": "User Avatars/1739777502672-user.png"
+            },
+            {
+                "extra": {
+                    "api": "custom",
+                    "model": "gemini-2.0-flash-exp",
+                    "reasoning": "",
+                    "reasoning_duration": null,
+                    "token_count": 3
+                },
+                "name": "测试",
+                "is_user": false,
+                "send_date": "February 28, 2025 12:43am",
+                "mes": "Hello!?",
+                "title": "",
+                "gen_started": "2025-02-27T16:43:43.214Z",
+                "gen_finished": "2025-02-27T16:43:45.973Z",
+                "swipe_id": 0,
+                "swipes": [
+                    "Hello!?"
+                ],
+                "swipe_info": [
+                    {
+                        "send_date": "February 28, 2025 12:43am",
+                        "gen_started": "2025-02-27T16:43:43.214Z",
+                        "gen_finished": "2025-02-27T16:43:45.973Z",
+                        "extra": {
+                            "api": "custom",
+                            "model": "gemini-2.0-flash-exp",
+                            "reasoning": "",
+                            "reasoning_duration": null,
+                            "token_count": 3
+                        }
+                    }
+                ]
+            }
+        ];
+
+
         try {
+            //必须先启用新对话
+            //先清空再添加
             chat.splice(0, chat.length, ...nativeChat);
-            context.reloadCurrentChat();
+            //chat.splice(0, chat.length, ...nativeChat2);
+            context.clearChat();
+            context.printMessages();
+            context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
+            
         } catch (error) {
             updateDebugLog(`替换聊天时出错: ${error.message}`);
             console.error(error);
