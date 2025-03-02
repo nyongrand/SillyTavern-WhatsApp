@@ -4,10 +4,10 @@
         "port": 8001
     },
     "llm_api": {
-        "base_url": "your_base_url",
+        "base_url": "base_url",
         "api_keys": [
-            "your_api_key1",
-            "your_api_key2"
+            "apikeys_1",
+            "apikeys_2"
         ]
     },
     "st_api": {

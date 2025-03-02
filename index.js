@@ -147,7 +147,7 @@ jQuery(async () => {
         extension_settings[extensionName].wsPort = $(this).val();
         saveSettingsDebounced();
     });
-
+    setupWebSocket();
     updateDebugLog('扩展初始化完成');
 
     $('#show_chat').on('click', () => {

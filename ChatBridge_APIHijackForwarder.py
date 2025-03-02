@@ -235,7 +235,7 @@ class ChatBridgeForwarder:
                 
                 try:
                     # 等待响应
-                    response = await asyncio.wait_for(future, timeout=10.0)
+                    response = await asyncio.wait_for(future, timeout=60.0)
                     return web.json_response(response)
                 finally:
                     self.response_futures.pop(request_id, None)
@@ -278,6 +278,7 @@ class ChatBridgeForwarder:
         try:
             # 1. 获取请求信息
             request_data = await request.json()
+            #print(request_data)
             is_stream = request_data.get('stream', False)
             logger.info(f"收到chat completion请求: PATH={request.path}, STREAM={is_stream}")
 
