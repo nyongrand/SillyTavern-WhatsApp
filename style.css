@@ -92,13 +92,32 @@
 
 .ChatBridgeExtension_connection {
     display: flex;
+    flex-direction: column; 
     gap: 10px;
     margin-bottom: 10px;
     align-items: center;
 }
+.ChatBridgeExtension_server_settings {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
 
-.ChatBridgeExtension_url_input input,
-.ChatBridgeExtension_port_input input {
+.ChatBridgeExtension_controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ChatBridgeExtension_port_input input{
+    background-color: var(--background-color);
+    color: var(--text-color);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+.ChatBridgeExtension_url_input input {
     background-color: var(--background-color);
     color: var(--text-color);
     border: 1px solid var(--accent-color);
@@ -125,6 +144,12 @@
     border-color: var(--shadow-color);
     cursor: not-allowed;
     opacity: 0.7;
+}
+
+.ChatBridgeExtension_controls label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 #debug_log {

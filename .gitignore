@@ -5,3 +5,5 @@ settings.json
 olds
 settings.json
 SECRET/
+apicheck.py
+apiTest.py

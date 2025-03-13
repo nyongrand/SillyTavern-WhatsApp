@@ -6,17 +6,23 @@
         </div>
         <div class="inline-drawer-content">
             <div class="ChatBridgeExtension_connection">
-                <div class="ChatBridgeExtension_url_input">
-                    <label>服务器地址:</label>
-                    <input type="text" id="ws_url" value="localhost" />
-                </div>
-                <div class="ChatBridgeExtension_port_input">
-                    <label>端口:</label>
-                    <input type="number" id="ws_port" value="8001" />
+                <div class="ChatBridgeExtension_server_settings">
+                    <div class="ChatBridgeExtension_url_input">
+                        <label>服务器地址:</label>
+                        <input type="text" id="ws_url" value="localhost" />
+                    </div>
+                    <div class="ChatBridgeExtension_port_input">
+                        <label>端口:</label>
+                        <input type="number" id="ws_port" value="8001" />
+                    </div>
                 </div>
                 <div class="ChatBridgeExtension_controls">
                     <input type="button" id="ws_connect" value="连接" />
                     <input type="button" id="ws_disconnect" value="断开" disabled />
+                    <label>
+                        <input type="checkbox" id="ws_auto_connect"/>
+                        每5s自动尝试连接
+                    </label>
                 </div>
             </div>
             <div class="ChatBridgeExtension_status">
@@ -28,6 +34,7 @@
                 <!-- 添加 debug_log 文本区域 -->
                 <textarea id="debug_log" rows="40" style="width: 100%; background-color: var(--background-color); color: var(--text-color); border: 1px solid var(--accent-color);" readonly></textarea>
             </div>
+            <!-- 测试用区域
             <div class="flex-container flexnowrap">
                 <hr>
                 <h3>测试区域</h3>
@@ -38,7 +45,8 @@
                         <input type="button" id="replace_chat" value="替换聊天" class="menu_button">
                     </div>
                 </div>
-            </div>
+            </div> 
+            -->
         </div>
     </div>
 </div>

@@ -267,22 +267,22 @@ class ChatBridgeForwarder:
             return web.Response(status=500, text=str(e))
 
     async def handle_chat_completions(self, request: web.Request) -> web.Response:
-        """处理聊天完成请求，直接转发 LLM API 的响应
-        
-        Args:
-            request: Web请求对象
-        
-        Returns:
-            web.Response: 处理后的响应
-        """
         try:
-            # 1. 获取请求信息
             request_data = await request.json()
-            #print(request_data)
             is_stream = request_data.get('stream', False)
             logger.info(f"收到chat completion请求: PATH={request.path}, STREAM={is_stream}")
 
-            # 2. 准备转发到LLM API
+            # 找到活跃的用户请求
+            active_user_futures = {
+                rid: future for rid, future in self.response_futures.items()
+                if not getattr(future, 'done', lambda: True)()
+            }
+            
+            if active_user_futures:
+                logger.info(f"找到 {len(active_user_futures)} 个活跃的用户请求")
+            else:
+                logger.warning("没有找到活跃的用户请求")
+
             api_key = self.key_rotator.get_next_key()
             headers = {
                 'Authorization': f'Bearer {api_key}',
@@ -292,61 +292,73 @@ class ChatBridgeForwarder:
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(target_url, json=request_data, headers=headers) as llm_response:
-                    # 3. 处理流式响应
                     if llm_response.headers.get('content-type') == 'text/event-stream':
                         logger.info("处理流式响应")
-                        # 创建ST的流式响应
                         st_response = web.StreamResponse(
                             status=llm_response.status,
                             headers={'Content-Type': 'text/event-stream'}
                         )
                         await st_response.prepare(request)
 
-                        # 获取等待响应的用户队列
                         active_user_queues = {
                             rid: queue for rid, queue in self.response_futures.items() 
                             if isinstance(queue, asyncio.Queue)
                         }
 
-                        # 直接转发每个数据块
                         async for chunk in llm_response.content:
                             if chunk:
+                                chunk_str = chunk.decode()
+                                logger.debug(f"收到数据块: {chunk_str[:100]}...")
+                                
                                 # 发送到ST
                                 await st_response.write(chunk)
-                                # 同时转发到用户队列
+                                
+                                # 转发到用户队列
                                 if active_user_queues:
-                                    for queue in active_user_queues.values():
-                                        await queue.put(chunk.decode())
+                                    for queue_id, queue in active_user_queues.items():
+                                        try:
+                                            await queue.put(chunk_str)
+                                            logger.debug(f"转发数据块到用户队列 {queue_id}")
+                                        except Exception as e:
+                                            logger.error(f"转发到用户队列失败 {queue_id}: {e}")
 
-                        # 流结束后通知用户队列
+                        # 发送结束标记
                         if active_user_queues:
-                            for queue in active_user_queues.values():
-                                await queue.put('[DONE]')
+                            for queue_id, queue in active_user_queues.items():
+                                try:
+                                    await queue.put('[DONE]')
+                                    logger.info(f"发送结束标记到用户队列 {queue_id}")
+                                except Exception as e:
+                                    logger.error(f"发送结束标记失败 {queue_id}: {e}")
 
                         return st_response
 
-                    # 4. 处理非流式响应
                     else:
                         logger.info("处理非流式响应")
                         response_data = await llm_response.json()
-                        logger.info(f"收到LLM响应: {response_data}")
-                         # 查找对应的用户请求Future并设置结果
-                        for request_id, future in list(self.response_futures.items()):
-                            if isinstance(future, asyncio.Future) and not future.done():
-                                logger.info(f"设置用户请求结果: ID={request_id}")
-                                future.set_result(response_data)
-                                break
-                        return web.json_response(
-                            response_data, 
-                            status=llm_response.status,
-                            #headers={'Content-Type': 'application/json'}
-                        )
+                        logger.info(f"收到LLM响应: {str(response_data)[:200]}...")
+
+                        # 转发到所有等待的用户请求
+                        futures_updated = False
+                        for request_id, future in list(active_user_futures.items()):
+                            try:
+                                if isinstance(future, asyncio.Future) and not future.done():
+                                    future.set_result(response_data)
+                                    logger.info(f"成功设置用户请求结果: ID={request_id}")
+                                    futures_updated = True
+                            except Exception as e:
+                                logger.error(f"设置用户请求结果失败 {request_id}: {e}")
+
+                        if not futures_updated:
+                            logger.warning("没有成功更新任何用户请求的结果")
+
+                        return web.json_response(response_data, status=llm_response.status)
 
         except Exception as e:
             error_msg = f"处理聊天完成请求失败: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return web.Response(status=500, text=error_msg)
-        
+    
 async def main():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     forwarder = ChatBridgeForwarder(settings_path)

@@ -4,7 +4,8 @@ import { chat } from "../../../../script.js";
 
 const extensionName = "SillyTavern-Extension-ChatBridge";
 const defaultSettings = {
-    wsPort: 8001
+    wsPort: 8001,
+    autoConnect: false
 };
 
 if (!extension_settings[extensionName]) {
@@ -124,17 +125,45 @@ function disconnectWebSocket() {
     updateWSStatus(false);
     updateConnectionButtons(false);
     updateDebugLog('已断开WebSocket连接');
+    // 如果启用了自动尝试连接，立即开始计时
+    if (extension_settings[extensionName].autoConnect) {
+        startAutoConnect();
+    }
+}
+
+//自动尝试连接
+let autoConnectTimer = null;
+//自动尝试连接功能
+function startAutoConnect() {
+    if (autoConnectTimer) {
+        clearInterval(autoConnectTimer);
+    }
+    
+    autoConnectTimer = setInterval(() => {
+        if (!ws || ws.readyState === WebSocket.CLOSED) {
+            updateDebugLog('自动尝试连接尝试中...');
+            setupWebSocket();
+        }
+    }, 5000);
+}
+
+function stopAutoConnect() {
+    if (autoConnectTimer) {
+        clearInterval(autoConnectTimer);
+        autoConnectTimer = null;
+    }
 }
 
 
-jQuery(async () => {
-    const context = getContext();
 
-    // 添加事件系统测试代码
-    updateDebugLog('=== 可用事件类型 ===');
-    for (const eventType in context.eventTypes) {
-        updateDebugLog(`${eventType}: ${context.eventTypes[eventType]}`);
-    }
+jQuery(async () => {
+
+    // // 事件系统测试代码
+    // const context = getContext();
+    // updateDebugLog('=== 可用事件类型 ===');
+    // for (const eventType in context.eventTypes) {
+    //     updateDebugLog(`${eventType}: ${context.eventTypes[eventType]}`);
+    // }
 
     const template = await $.get(`/scripts/extensions/third-party/${extensionName}/index.html`);
     $('#extensions_settings').append(template);
@@ -148,135 +177,159 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
     setupWebSocket();
-    updateDebugLog('扩展初始化完成');
 
-    $('#show_chat').on('click', () => {
-        const context = getContext();
-
-        updateDebugLog('=== 当前聊天状态 ===');
-        updateDebugLog('name1: ' + context.name1);
-        updateDebugLog('name2: ' + context.name2);
-        updateDebugLog('characterId: ' + context.characterId);
-        updateDebugLog('当前聊天内容:');
-        updateDebugLog(JSON.stringify(context.chat, null, 2));
-        updateDebugLog('当前聊天元数据:');
-        updateDebugLog(JSON.stringify(context.chatMetadata, null, 2));
-    });
-
-    $('#replace_chat').on('click', () => {
-        const context = getContext();
-
-        const nativeChat = [
-            {
-                "name": "user",
-                "is_user": true,
-                "is_system": false,
-                "send_date": "February 26, 2025 2:09pm",
-                "mes": "？",
-                "extra": {
-                    "isSmallSys": false,
-                    "token_count": 2,
-                    "reasoning": ""
-                },
-                "force_avatar": "User Avatars/1739777502672-user.png"
-            },
-            {
-                "extra": {
-                    "api": "custom",
-                    "model": "gemini-2.0-flash-exp",
-                    "reasoning": "",
-                    "reasoning_duration": null,
-                    "token_count": 64
-                },
-                "name": "测试",
-                "is_user": false,
-                "send_date": "February 26, 2025 2:09pm",
-                "mes": "我不太确定你在问什么。你可以更详细地说明你的问题吗？",
-                "title": "",
-                "gen_started": "2025-02-26T06:09:43.173Z",
-                "gen_finished": "2025-02-26T06:09:45.338Z",
-                "swipe_id": 0,
-                "swipes": ["我不太确定你在问什么。你可以更详细地说明你的问题吗？"],
-                "swipe_info": [{
-                    "send_date": "February 26, 2025 2:09pm",
-                    "gen_started": "2025-02-26T06:09:43.173Z",
-                    "gen_finished": "2025-02-26T06:09:45.338Z",
-                    "extra": {
-                        "api": "custom",
-                        "model": "gemini-2.0-flash-exp",
-                        "reasoning": "",
-                        "reasoning_duration": null,
-                        "token_count": 64
-                    }
-                }]
-            }
-        ];
-
-        const nativeChat2 = [
-            {
-                "name": "user",
-                "is_user": true,
-                "is_system": false,
-                "send_date": "February 28, 2025 12:43am",
-                "mes": "?",
-                "extra": {
-                    "isSmallSys": false,
-                    "token_count": 2,
-                    "reasoning": ""
-                },
-                "force_avatar": "User Avatars/1739777502672-user.png"
-            },
-            {
-                "extra": {
-                    "api": "custom",
-                    "model": "gemini-2.0-flash-exp",
-                    "reasoning": "",
-                    "reasoning_duration": null,
-                    "token_count": 3
-                },
-                "name": "测试",
-                "is_user": false,
-                "send_date": "February 28, 2025 12:43am",
-                "mes": "Hello!?",
-                "title": "",
-                "gen_started": "2025-02-27T16:43:43.214Z",
-                "gen_finished": "2025-02-27T16:43:45.973Z",
-                "swipe_id": 0,
-                "swipes": [
-                    "Hello!?"
-                ],
-                "swipe_info": [
-                    {
-                        "send_date": "February 28, 2025 12:43am",
-                        "gen_started": "2025-02-27T16:43:43.214Z",
-                        "gen_finished": "2025-02-27T16:43:45.973Z",
-                        "extra": {
-                            "api": "custom",
-                            "model": "gemini-2.0-flash-exp",
-                            "reasoning": "",
-                            "reasoning_duration": null,
-                            "token_count": 3
-                        }
-                    }
-                ]
-            }
-        ];
-
-
-        try {
-            //必须先启用新对话
-            //先清空再添加
-            chat.splice(0, chat.length, ...nativeChat);
-            //chat.splice(0, chat.length, ...nativeChat2);
-            context.clearChat();
-            context.printMessages();
-            context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
-            
-        } catch (error) {
-            updateDebugLog(`替换聊天时出错: ${error.message}`);
-            console.error(error);
+    //自动尝试连接
+    $('#ws_auto_connect').prop('checked', extension_settings[extensionName].autoConnect);
+    // 添加自动尝试连接复选框的事件处理
+    $('#ws_auto_connect').on('change', function() {
+        const isChecked = $(this).prop('checked');
+        extension_settings[extensionName].autoConnect = isChecked;
+        saveSettingsDebounced();
+        
+        if (isChecked) {
+            updateDebugLog('已启用自动尝试连接');
+            startAutoConnect();
+        } else {
+            updateDebugLog('已禁用自动尝试连接');
+            stopAutoConnect();
         }
     });
+    
+    // 如果启用了自动尝试连接，则启动定时器
+    if (extension_settings[extensionName].autoConnect) {
+        startAutoConnect();
+    }
 
-    updateDebugLog('测试功能已初始化');
+    updateDebugLog('扩展初始化完成');
+
+    // 以下为测试代码
+    // $('#show_chat').on('click', () => {
+    //     const context = getContext();
+
+    //     updateDebugLog('=== 当前聊天状态 ===');
+    //     updateDebugLog('name1: ' + context.name1);
+    //     updateDebugLog('name2: ' + context.name2);
+    //     updateDebugLog('characterId: ' + context.characterId);
+    //     updateDebugLog('当前聊天内容:');
+    //     updateDebugLog(JSON.stringify(context.chat, null, 2));
+    //     updateDebugLog('当前聊天元数据:');
+    //     updateDebugLog(JSON.stringify(context.chatMetadata, null, 2));
+    // });
+
+    // $('#replace_chat').on('click', () => {
+    //     const context = getContext();
+
+    //     const nativeChat = [
+    //         {
+    //             "name": "user",
+    //             "is_user": true,
+    //             "is_system": false,
+    //             "send_date": "February 26, 2025 2:09pm",
+    //             "mes": "？",
+    //             "extra": {
+    //                 "isSmallSys": false,
+    //                 "token_count": 2,
+    //                 "reasoning": ""
+    //             },
+    //             "force_avatar": "User Avatars/1739777502672-user.png"
+    //         },
+    //         {
+    //             "extra": {
+    //                 "api": "custom",
+    //                 "model": "gemini-2.0-flash-exp",
+    //                 "reasoning": "",
+    //                 "reasoning_duration": null,
+    //                 "token_count": 64
+    //             },
+    //             "name": "测试",
+    //             "is_user": false,
+    //             "send_date": "February 26, 2025 2:09pm",
+    //             "mes": "我不太确定你在问什么。你可以更详细地说明你的问题吗？",
+    //             "title": "",
+    //             "gen_started": "2025-02-26T06:09:43.173Z",
+    //             "gen_finished": "2025-02-26T06:09:45.338Z",
+    //             "swipe_id": 0,
+    //             "swipes": ["我不太确定你在问什么。你可以更详细地说明你的问题吗？"],
+    //             "swipe_info": [{
+    //                 "send_date": "February 26, 2025 2:09pm",
+    //                 "gen_started": "2025-02-26T06:09:43.173Z",
+    //                 "gen_finished": "2025-02-26T06:09:45.338Z",
+    //                 "extra": {
+    //                     "api": "custom",
+    //                     "model": "gemini-2.0-flash-exp",
+    //                     "reasoning": "",
+    //                     "reasoning_duration": null,
+    //                     "token_count": 64
+    //                 }
+    //             }]
+    //         }
+    //     ];
+
+    //     const nativeChat2 = [
+    //         {
+    //             "name": "user",
+    //             "is_user": true,
+    //             "is_system": false,
+    //             "send_date": "February 28, 2025 12:43am",
+    //             "mes": "?",
+    //             "extra": {
+    //                 "isSmallSys": false,
+    //                 "token_count": 2,
+    //                 "reasoning": ""
+    //             },
+    //             "force_avatar": "User Avatars/1739777502672-user.png"
+    //         },
+    //         {
+    //             "extra": {
+    //                 "api": "custom",
+    //                 "model": "gemini-2.0-flash-exp",
+    //                 "reasoning": "",
+    //                 "reasoning_duration": null,
+    //                 "token_count": 3
+    //             },
+    //             "name": "测试",
+    //             "is_user": false,
+    //             "send_date": "February 28, 2025 12:43am",
+    //             "mes": "Hello!?",
+    //             "title": "",
+    //             "gen_started": "2025-02-27T16:43:43.214Z",
+    //             "gen_finished": "2025-02-27T16:43:45.973Z",
+    //             "swipe_id": 0,
+    //             "swipes": [
+    //                 "Hello!?"
+    //             ],
+    //             "swipe_info": [
+    //                 {
+    //                     "send_date": "February 28, 2025 12:43am",
+    //                     "gen_started": "2025-02-27T16:43:43.214Z",
+    //                     "gen_finished": "2025-02-27T16:43:45.973Z",
+    //                     "extra": {
+    //                         "api": "custom",
+    //                         "model": "gemini-2.0-flash-exp",
+    //                         "reasoning": "",
+    //                         "reasoning_duration": null,
+    //                         "token_count": 3
+    //                     }
+    //                 }
+    //             ]
+    //         }
+    //     ];
+
+
+    //     try {
+    //         //必须先启用新对话
+    //         //先清空再添加
+    //         chat.splice(0, chat.length, ...nativeChat);
+    //         //chat.splice(0, chat.length, ...nativeChat2);
+    //         context.clearChat();
+    //         context.printMessages();
+    //         context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
+            
+    //     } catch (error) {
+    //         updateDebugLog(`替换聊天时出错: ${error.message}`);
+    //         console.error(error);
+    //     }
+    // });
+
+    // updateDebugLog('测试功能已初始化');
 });

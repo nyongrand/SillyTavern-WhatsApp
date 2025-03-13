@@ -93,7 +93,7 @@ sequenceDiagram
     STAPI->>LLM: 5.请求响应
     LLM-->>STAPI: 6.返回结果
     STAPI-->>ST: 7a.发送响应
-    STAPI-->>UserAPI: 7b.同步响应
+    LLMAPI-->>UserAPI: 7b.同步发送响应
     UserAPI-->>User: 8.返回结果
 ```
 
@@ -120,3 +120,7 @@ sequenceDiagram
 
 本项目采用AGPL-3.0许可证
 This project is licensed under AGPL-3.0
+
+## 已知问题
+
+- 若对UserApi的请求在上一条信息响应未完全结束时，发送另一条请求，有大概率会得到相同的回复。即转发器设计bug使得UserApi对短时间的请求将会给出相同的复制的响应，将在未来的版本修复，此Bug不影响单机串行使用。
