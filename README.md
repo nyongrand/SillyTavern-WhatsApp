@@ -1,6 +1,6 @@
 # SillyTavern Extension - ChatBridge 
 
-一个用于SillyTavern的API桥接扩展，让外部应用能够复用SillyTavern的对话功能，像调用api一样在SillyTavern中聊天。
+一个用于SillyTavern的API桥接扩展，让外部应用（如qq机器人）能够复用SillyTavern的对话功能，像调用api一样在SillyTavern中聊天。
 
 An API bridging extension for SillyTavern that allows external applications to reuse SillyTavern's conversation functionality, enabling chat in SillyTavern as if calling an API.
 
