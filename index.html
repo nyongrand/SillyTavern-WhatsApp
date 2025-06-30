@@ -8,41 +8,43 @@
             <div class="ChatBridgeExtension_connection">
                 <div class="ChatBridgeExtension_server_settings">
                     <div class="ChatBridgeExtension_url_input">
-                        <label>服务器地址:</label>
+                        <label>Host:</label>
                         <input type="text" id="ws_url" value="localhost" />
                     </div>
                     <div class="ChatBridgeExtension_port_input">
-                        <label>端口:</label>
+                        <label>Port:</label>
                         <input type="number" id="ws_port" value="8001" />
                     </div>
                 </div>
                 <div class="ChatBridgeExtension_controls">
-                    <input type="button" id="ws_connect" value="连接" />
-                    <input type="button" id="ws_disconnect" value="断开" disabled />
+                    <input type="button" id="ws_connect" value="Connect" />
+                    <input type="button" id="ws_disconnect" value="Disconnect" disabled />
                     <label>
-                        <input type="checkbox" id="ws_auto_connect"/>
-                        每5s自动尝试连接
+                        <input type="checkbox" id="ws_auto_connect" />
+                        Automatically try to connect every 5 secondsF
                     </label>
                 </div>
             </div>
             <div class="ChatBridgeExtension_status">
-                <label>服务器状态:</label>
-                <div id="ws_status" style="color: red;">未连接</div>
+                <label>Server Status:</label>
+                <div id="ws_status" style="color: red;">Not connected</div>
             </div>
             <div class="ChatBridgeExtension_debug">
-                <label>调试信息:</label>
-                <!-- 添加 debug_log 文本区域 -->
-                <textarea id="debug_log" rows="40" style="width: 100%; background-color: var(--background-color); color: var(--text-color); border: 1px solid var(--accent-color);" readonly></textarea>
+                <label>Debug Information:</label>
+                <!-- Add debug_log text area -->
+                <textarea id="debug_log" rows="40"
+                    style="width: 100%; background-color: var(--background-color); color: var(--text-color); border: 1px solid var(--accent-color);"
+                    readonly></textarea>
             </div>
-            <!-- 测试用区域
+            <!-- Test area 
             <div class="flex-container flexnowrap">
                 <hr>
-                <h3>测试区域</h3>
+                <h3>Test area</h3>
                 <div class="flex-container flexnowrap">
                     <div style="margin: 10px 0; width: 100%;">
-                        <input type="text" id="test_message" placeholder="输入测试消息" style="width: 70%;">
-                        <input type="button" id="show_chat" value="显示当前聊天" class="menu_button">
-                        <input type="button" id="replace_chat" value="替换聊天" class="menu_button">
+                        <input type="text" id="test_message" placeholder="Enter a test message" style="width: 70%;">
+                        <input type="button" id="show_chat" value="Show current chat" class="menu_button">
+                        <input type="button" id="replace_chat" value="Replace Chat" class="menu_button">
                     </div>
                 </div>
             </div> 
