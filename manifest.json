@@ -1,11 +1,11 @@
 {
-    "display_name": "Chat Bridge Extension",
+    "display_name": "WhatsApp Extension",
     "loading_order": 10,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "YourName",
+    "author": "nyongrand",
     "version": "1.0.0",
-    "homePage": "https://github.com/yourusername/ChatBridgeExtension"
+    "homePage": "https://github.com/nyongrand/SillyTavern-WhatsApp"
 }
