@@ -90,26 +90,27 @@
     margin: 15px 0 10px 0;
 }
 
-.ChatBridgeExtension_connection {
+.WhatsAppExtension_connection {
     display: flex;
-    flex-direction: column; 
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 10px;
     align-items: center;
 }
-.ChatBridgeExtension_server_settings {
+
+.WhatsAppExtension_server_settings {
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
-.ChatBridgeExtension_controls {
+.WhatsAppExtension_controls {
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
-.ChatBridgeExtension_port_input input{
+.WhatsAppExtension_port_input input {
     background-color: var(--background-color);
     color: var(--text-color);
     border: 1px solid var(--accent-color);
@@ -117,7 +118,7 @@
     padding: 4px 8px;
 }
 
-.ChatBridgeExtension_url_input input {
+.WhatsAppExtension_url_input input {
     background-color: var(--background-color);
     color: var(--text-color);
     border: 1px solid var(--accent-color);
@@ -125,7 +126,7 @@
     padding: 4px 8px;
 }
 
-.ChatBridgeExtension_controls input[type="button"] {
+.WhatsAppExtension_controls input[type="button"] {
     background-color: var(--secondary-color);
     color: var(--text-color);
     border: 1px solid var(--accent-color);
@@ -135,18 +136,18 @@
     transition: background-color 0.2s;
 }
 
-.ChatBridgeExtension_controls input[type="button"]:hover {
+.WhatsAppExtension_controls input[type="button"]:hover {
     background-color: var(--accent-color);
 }
 
-.ChatBridgeExtension_controls input[type="button"]:disabled {
+.WhatsAppExtension_controls input[type="button"]:disabled {
     background-color: var(--shadow-color);
     border-color: var(--shadow-color);
     cursor: not-allowed;
     opacity: 0.7;
 }
 
-.ChatBridgeExtension_controls label {
+.WhatsAppExtension_controls label {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -162,7 +163,7 @@
 }
 
 /* 状态显示样式 */
-.ChatBridgeExtension_status {
+.WhatsAppExtension_status {
     margin: 10px 0;
 }
 
@@ -172,7 +173,7 @@
 }
 
 /* 标签样式 */
-.ChatBridgeExtension_connection label {
+.WhatsAppExtension_connection label {
     color: var(--text-color);
 }
 
@@ -190,14 +191,14 @@
     resize: vertical;
 }
 
-.ChatBridgeExtension_debug {
+.WhatsAppExtension_debug {
     margin-top: 10px;
     padding: 8px;
     background-color: var(--hover-color);
     border-radius: 4px;
 }
 
-.ChatBridgeExtension_debug label {
+.WhatsAppExtension_debug label {
     display: block;
     margin-bottom: 5px;
     color: var(--text-color);

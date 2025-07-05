@@ -1,54 +1,40 @@
-<div id="ChatBridgeExtension_settings">
+<div id="WhatsAppExtension_settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b>Chat Bridge</b>
+            <b>WhatsApp</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="ChatBridgeExtension_connection">
-                <div class="ChatBridgeExtension_server_settings">
-                    <div class="ChatBridgeExtension_url_input">
+            <div class="WhatsAppExtension_connection">
+                <div class="WhatsAppExtension_server_settings">
+                    <div class="WhatsAppExtension_url_input">
                         <label>Host:</label>
                         <input type="text" id="ws_url" value="localhost" />
                     </div>
-                    <div class="ChatBridgeExtension_port_input">
+                    <div class="WhatsAppExtension_port_input">
                         <label>Port:</label>
                         <input type="number" id="ws_port" value="8001" />
                     </div>
                 </div>
-                <div class="ChatBridgeExtension_controls">
+                <div class="WhatsAppExtension_controls">
                     <input type="button" id="ws_connect" value="Connect" />
                     <input type="button" id="ws_disconnect" value="Disconnect" disabled />
                     <label>
                         <input type="checkbox" id="ws_auto_connect" />
-                        Automatically try to connect every 5 secondsF
+                        Automatically try to connect every 5 seconds
                     </label>
                 </div>
             </div>
-            <div class="ChatBridgeExtension_status">
+            <div class="WhatsAppExtension_status">
                 <label>Server Status:</label>
                 <div id="ws_status" style="color: red;">Not connected</div>
             </div>
-            <div class="ChatBridgeExtension_debug">
+            <div class="WhatsAppExtension_debug">
                 <label>Debug Information:</label>
-                <!-- Add debug_log text area -->
-                <textarea id="debug_log" rows="40"
+                <textarea id="debug_log" rows="36"
                     style="width: 100%; background-color: var(--background-color); color: var(--text-color); border: 1px solid var(--accent-color);"
                     readonly></textarea>
             </div>
-            <!-- Test area 
-            <div class="flex-container flexnowrap">
-                <hr>
-                <h3>Test area</h3>
-                <div class="flex-container flexnowrap">
-                    <div style="margin: 10px 0; width: 100%;">
-                        <input type="text" id="test_message" placeholder="Enter a test message" style="width: 70%;">
-                        <input type="button" id="show_chat" value="Show current chat" class="menu_button">
-                        <input type="button" id="replace_chat" value="Replace Chat" class="menu_button">
-                    </div>
-                </div>
-            </div> 
-            -->
         </div>
     </div>
 </div>
